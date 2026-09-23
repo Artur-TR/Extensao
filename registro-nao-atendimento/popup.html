@@ -3,60 +3,80 @@
 <head>
   <meta charset="UTF-8">
   <link rel="stylesheet" href="estilo.css">
-  <style> body { width: 360px; } </style>
+  <style>
+    body { width: 390px; }
+    .conteudo { padding: 10px 16px; }
+    .campo { margin-bottom: 8px; }
+    label { margin-bottom: 3px; }
+    input, select { padding: 5px 8px; }
+    textarea { min-height: 38px; }
+    .motivo { padding: 6px 8px; white-space: nowrap; }
+    .linha.fim { align-items: flex-end; }
+    .linha .campo.acao { flex: none; }
+    .campo.acao button { padding: 6px 22px; }
+  </style>
 </head>
 <body>
   <div class="cabecalho">
-    <h1>Registro de nao atendimento</h1>
-    <p>Informe o motivo da chamada nao atendida.</p>
+    <h1>Registro de não atendimento</h1>
+    <p>Teclas <b>1</b> a <b>8</b> escolhem o motivo · <b>Enter</b> registra · abrir: <b>Alt+Shift+R</b></p>
   </div>
 
   <div class="barraLogin" id="barraLogin">
-    <span id="textoLogin">Verificando sessao do Microsoft 365...</span>
+    <span id="textoLogin"></span>
     <button type="button" id="btnLogin">Entrar</button>
   </div>
 
   <div class="conteudo">
-    <form id="formulario">
+    <form id="formulario" novalidate>
       <div class="campo">
-        <label for="atendente">Atendente <span class="etiqueta" id="origemAtendente"></span></label>
-        <input type="text" id="atendente" placeholder="Seu nome ou matricula" required>
-        <div class="dica" id="dicaAtendente"></div>
+        <label for="chamada">Chamada</label>
+        <select id="chamada"></select>
+        <div class="dica" id="dicaChamada"></div>
       </div>
 
       <div class="linha">
         <div class="campo">
           <label for="telefone">Telefone</label>
-          <input type="text" id="telefone" placeholder="(00) 00000-0000" required>
+          <input type="text" id="telefone" placeholder="(00) 00000-0000">
         </div>
         <div class="campo">
-          <label for="codCliente">Cod. cliente</label>
+          <label for="codCliente">Cód. cliente</label>
           <input type="text" id="codCliente" placeholder="opcional">
         </div>
       </div>
-      <div class="detectado" id="detectado">Dados preenchidos automaticamente pela guia aberta.</div>
 
-      <div class="campo">
-        <label for="dataHora">Data e hora da chamada</label>
-        <input type="datetime-local" id="dataHora" required>
+      <div class="linha">
+        <div class="campo largo">
+          <label for="dataHora">Data e hora da chamada</label>
+          <input type="datetime-local" id="dataHora">
+        </div>
+        <div class="campo">
+          <label for="idInteracao">ID Genesys</label>
+          <input type="text" id="idInteracao" placeholder="opcional">
+        </div>
       </div>
 
       <div class="campo">
-        <label for="motivo">Motivo do nao atendimento</label>
-        <select id="motivo" required>
-          <option value="">Selecione...</option>
-        </select>
+        <label>Motivo do não atendimento</label>
+        <div class="motivos" id="motivos" role="radiogroup"></div>
       </div>
 
       <div class="campo">
-        <label for="observacao">Observacao</label>
-        <textarea id="observacao" placeholder="Detalhe se necessario"></textarea>
+        <label for="observacao">Observação <span class="etiqueta alerta" id="obsObrigatoria" hidden>obrigatória</span></label>
+        <textarea id="observacao" rows="2" placeholder="Detalhe se necessário (Ctrl+Enter registra)"></textarea>
       </div>
 
-      <div class="acoes">
-        <button type="submit">Registrar</button>
-        <button type="button" class="secundario" id="btnHistorico">Ver historico</button>
+      <div class="linha fim">
+        <div class="campo">
+          <label for="atendente">Atendente <span class="etiqueta" id="origemAtendente"></span></label>
+          <input type="text" id="atendente" placeholder="Seu nome">
+        </div>
+        <div class="campo acao">
+          <button type="submit" id="btnRegistrar">Registrar</button>
+        </div>
       </div>
+      <div class="dica" id="dicaAtendente"></div>
 
       <div class="aviso" id="aviso"></div>
     </form>
@@ -64,7 +84,7 @@
 
   <div class="rodape">
     <span id="contador">0 registros</span>
-    <a id="linkHistorico">Abrir historico completo</a>
+    <a id="linkHistorico">Abrir histórico completo</a>
   </div>
 
   <script src="common.js"></script>

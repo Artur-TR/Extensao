@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Registro de Nao Atendimento",
-  "version": "0.5.0",
-  "description": "Registra o motivo de chamadas nao atendidas, mantem historico local e envia para a lista do SharePoint.",
-  "permissions": ["storage", "tabs", "scripting"],
+  "version": "0.6.0",
+  "description": "Registra o motivo de chamadas nao atendidas (Rona), mantem historico local e envia para a lista do SharePoint.",
+  "permissions": ["storage", "tabs", "scripting", "alarms"],
   "host_permissions": [
     "https://sgd.dominiosistemas.com.br/*",
     "https://trten-my.sharepoint.com/*"
@@ -14,5 +14,11 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Registrar nao atendimento"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+R" },
+      "description": "Abrir o registro de nao atendimento"
+    }
   }
 }

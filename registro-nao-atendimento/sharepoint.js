@@ -11,6 +11,7 @@
 //
 // Para apontar para outra lista, troque SP_SITE e SP_LISTA abaixo
 // (e atualize o host_permissions no manifest.json para o novo dominio).
+// Depois use "Configurar lista" na pagina de historico para criar as colunas.
 
 const SP_SITE =
   "https://trten-my.sharepoint.com/personal/caue_costadecarvalho_thomsonreuters_com";
@@ -25,8 +26,30 @@ const SP_URL_APOIO = SP_SITE + "/_api/web/currentuser";
 const SP_URL_PAGINA_LISTA =
   SP_SITE + "/Lists/" + encodeURIComponent(SP_LISTA) + "/AllItems.aspx";
 
-// Evita dois envios simultaneos (popup + historico + sincronizacao automatica).
-let spSincronizando = false;
+// Colunas da lista. "nome" e o nome interno (o que a API grava); "titulo" e
+// o que o gestor ve. O autor do registro nao precisa de coluna: a coluna
+// nativa "Criado por" ja traz a conta Microsoft 365 de quem enviou.
+const SP_COLUNAS = [
+  { nome: "DataHoraChamada", titulo: "Data/hora da chamada", xml: "Type='DateTime' Format='DateTime'", visivel: true },
+  { nome: "Motivo", titulo: "Motivo", choice: true, visivel: true },
+  { nome: "AtendenteSGD", titulo: "Atendente", xml: "Type='Text'", visivel: true },
+  { nome: "CodCliente", titulo: "Cód. cliente", xml: "Type='Text'", visivel: true },
+  { nome: "IdInteracao", titulo: "ID da interação (Genesys)", xml: "Type='Text'", visivel: true },
+  { nome: "Observacao", titulo: "Observação", xml: "Type='Note' RichText='FALSE' NumLines='4'", visivel: true },
+  { nome: "Origem", titulo: "Origem dos dados", xml: "Type='Text'", visivel: true },
+  { nome: "RegistradoEm", titulo: "Registrado em", xml: "Type='DateTime' Format='DateTime'", visivel: true },
+  { nome: "VersaoExtensao", titulo: "Versão da extensão", xml: "Type='Text'", visivel: false },
+  // Indexada: sem indice, o filtro anti-duplicata quebra acima de 5.000 itens.
+  { nome: "IdLocal", titulo: "IdLocal", xml: "Type='Text' Indexed='TRUE'", visivel: false }
+];
+
+// Uma sincronizacao por vez. Quem chega durante uma em andamento espera ela
+// terminar e roda a sua, para o registro recem-salvo entrar no envio.
+let spSincronizacaoAtual = null;
+
+// Guias do SharePoint abertas pela propria extensao. O carregamento delas nao
+// pode disparar nova sincronizacao, senao uma falha vira laco infinito.
+const spAbasProprias = new Set();
 
 function spUrlLista(sufixo) {
   return (
@@ -40,8 +63,11 @@ function spUrlLista(sufixo) {
 
 function traduzirErroSp(erro) {
   const msg = String((erro && erro.message) || erro || "");
-  if (msg.includes("SEM_ABA")) {
+  if (msg.includes("SEM_ABA") || msg.includes("Cannot access")) {
     return "Nao foi possivel abrir uma pagina do SharePoint. Confirme que voce esta logado no Microsoft 365 neste navegador.";
+  }
+  if (msg.includes("error page")) {
+    return "A pagina do SharePoint nao carregou. Verifique a rede ou se o Zscaler esta conectado.";
   }
   if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
     return "Nao foi possivel alcancar o SharePoint. Verifique a rede ou se o Zscaler esta conectado.";
@@ -106,13 +132,50 @@ async function spObterAba() {
   if (pronta) return { tabId: pronta.id, criada: false };
 
   const aba = await chrome.tabs.create({ url: SP_URL_APOIO, active: false });
+  spAbasProprias.add(aba.id);
   try {
     await esperarCarregar(aba.id);
   } catch (e) {
-    try { await chrome.tabs.remove(aba.id); } catch (e2) { /* ja fechada */ }
+    await spFecharAbaPropria(aba.id);
     throw e;
   }
   return { tabId: aba.id, criada: true };
+}
+
+async function spFecharAbaPropria(tabId) {
+  try { await chrome.tabs.remove(tabId); } catch (e) { /* ja fechada */ }
+  spAbasProprias.delete(tabId);
+}
+
+async function spExecutarNaAba(func, args) {
+  const alvo = await spObterAba();
+  try {
+    const saida = await chrome.scripting.executeScript({
+      target: { tabId: alvo.tabId },
+      func: func,
+      args: args
+    });
+    return (saida && saida[0] && saida[0].result) ||
+      { erro: "sem resposta da pagina do SharePoint" };
+  } finally {
+    if (alvo.criada) await spFecharAbaPropria(alvo.tabId);
+  }
+}
+
+function spCamposDoRegistro(r) {
+  return {
+    Title: r.telefone || "(sem telefone)",
+    DataHoraChamada: r.dataHora,
+    Motivo: r.motivo,
+    AtendenteSGD: r.atendente || "",
+    CodCliente: r.codCliente || "",
+    IdInteracao: r.idInteracao || "",
+    Observacao: r.observacao || "",
+    Origem: r.origemDados || "",
+    RegistradoEm: r.registradoEm,
+    VersaoExtensao: r.versao || "",
+    IdLocal: r.id
+  };
 }
 
 // Executado DENTRO da pagina do SharePoint. Precisa ser autocontido:
@@ -120,23 +183,35 @@ async function spObterAba() {
 function spInjecaoGravar(site, nomeLista, registros) {
   const urlLista =
     site + "/_api/web/lists/getbytitle('" + encodeURIComponent(nomeLista) + "')";
+  const leitura = { Accept: "application/json;odata=nometadata" };
 
   return (async () => {
     try {
       const respDigest = await fetch(site + "/_api/contextinfo", {
         method: "POST",
         credentials: "include",
-        headers: { Accept: "application/json;odata=nometadata" }
+        headers: leitura
       });
       if (!respDigest.ok) return { erro: "contextinfo HTTP " + respDigest.status };
       const digest = (await respDigest.json()).FormDigestValue;
 
       const respTipo = await fetch(urlLista + "?$select=ListItemEntityTypeFullName", {
         credentials: "include",
-        headers: { Accept: "application/json;odata=nometadata" }
+        headers: leitura
       });
       if (!respTipo.ok) return { erro: "lista HTTP " + respTipo.status };
       const tipo = (await respTipo.json()).ListItemEntityTypeFullName;
+
+      // Grava so as colunas que existem na lista. Uma coluna faltando nao
+      // derruba o envio inteiro; o diagnostico aponta o que falta.
+      let campos = null;
+      const respCampos = await fetch(urlLista + "/fields?$select=InternalName", {
+        credentials: "include",
+        headers: leitura
+      });
+      if (respCampos.ok) {
+        campos = (await respCampos.json()).value.map((f) => f.InternalName);
+      }
 
       const resultados = [];
       for (const reg of registros) {
@@ -147,7 +222,7 @@ function spInjecaoGravar(site, nomeLista, registros) {
             const respExiste = await fetch(
               urlLista + "/items?$select=Id&$top=1&$filter=IdLocal eq '" +
                 encodeURIComponent(reg.id) + "'",
-              { credentials: "include", headers: { Accept: "application/json;odata=nometadata" } }
+              { credentials: "include", headers: leitura }
             );
             if (respExiste.ok) {
               const dados = await respExiste.json();
@@ -158,6 +233,11 @@ function spInjecaoGravar(site, nomeLista, registros) {
             }
           }
 
+          const corpo = { __metadata: { type: tipo } };
+          for (const [chave, valor] of Object.entries(reg.campos)) {
+            if (!campos || campos.includes(chave)) corpo[chave] = valor;
+          }
+
           const resp = await fetch(urlLista + "/items", {
             method: "POST",
             credentials: "include",
@@ -166,16 +246,7 @@ function spInjecaoGravar(site, nomeLista, registros) {
               "Content-Type": "application/json;odata=verbose",
               "X-RequestDigest": digest
             },
-            body: JSON.stringify({
-              __metadata: { type: tipo },
-              Title: reg.telefone || "(sem telefone)",
-              DataHoraChamada: reg.dataHora,
-              CodCliente: reg.codCliente || "",
-              Motivo: reg.motivo,
-              Observacao: reg.observacao || "",
-              AtendenteSGD: reg.atendente || "",
-              IdLocal: reg.id
-            })
+            body: JSON.stringify(corpo)
           });
 
           if (resp.ok) {
@@ -193,102 +264,202 @@ function spInjecaoGravar(site, nomeLista, registros) {
         }
       }
 
-      return { digestOk: true, tipo: tipo, resultados: resultados };
+      return { digestOk: true, tipo: tipo, campos: campos, resultados: resultados };
     } catch (e) {
       return { erro: String((e && e.message) || e) };
     }
   })();
 }
 
-async function spGravarLote(registros) {
-  const alvo = await spObterAba();
-  try {
-    const saida = await chrome.scripting.executeScript({
-      target: { tabId: alvo.tabId },
-      func: spInjecaoGravar,
-      args: [SP_SITE, SP_LISTA, registros]
-    });
-    return (saida && saida[0] && saida[0].result) ||
-      { erro: "sem resposta da pagina do SharePoint" };
-  } finally {
-    if (alvo.criada) {
-      try { await chrome.tabs.remove(alvo.tabId); } catch (e) { /* ja fechada */ }
-    }
-  }
+function spGravarLote(registros) {
+  return spExecutarNaAba(spInjecaoGravar, [SP_SITE, SP_LISTA, registros]);
 }
 
 // Envia tudo que ainda nao subiu. O armazenamento local continua sendo a
 // fonte de verdade: a lista e uma copia, e nada se perde se o envio falhar.
 async function sincronizarPendentes() {
-  if (spSincronizando) return { ok: 0, falhas: 0, total: 0, erro: null, ocupado: true };
-  spSincronizando = true;
-
-  try {
-    const lista = await lerRegistros();
-    const pendentes = lista.filter((r) => !r.enviado);
-    if (!pendentes.length) return { ok: 0, falhas: 0, total: 0, erro: null };
-
-    // Registros que ja falharam antes sao conferidos na lista antes de
-    // gravar de novo, para nao virarem linha duplicada no relatorio.
-    const lote = pendentes.map((r) => ({
-      id: r.id,
-      telefone: r.telefone,
-      dataHora: r.dataHora,
-      codCliente: r.codCliente,
-      motivo: r.motivo,
-      observacao: r.observacao,
-      atendente: r.atendente,
-      verificarDuplicata: (r.tentativas || 0) > 0
-    }));
-
-    for (const registro of pendentes) {
-      registro.tentativas = (registro.tentativas || 0) + 1;
-    }
-
-    let resposta;
-    try {
-      resposta = await spGravarLote(lote);
-    } catch (e) {
-      await gravarRegistros(lista);
-      return {
-        ok: 0,
-        falhas: pendentes.length,
-        total: pendentes.length,
-        erro: String((e && e.message) || e)
-      };
-    }
-
-    if (resposta.erro) {
-      await gravarRegistros(lista);
-      return { ok: 0, falhas: pendentes.length, total: pendentes.length, erro: resposta.erro };
-    }
-
-    const porId = {};
-    for (const r of resposta.resultados || []) porId[r.id] = r;
-
-    let ok = 0;
-    let falhas = 0;
-    let erro = null;
-
-    for (const registro of pendentes) {
-      const res = porId[registro.id];
-      if (res && res.ok) {
-        registro.enviado = true;
-        registro.enviadoEm = new Date().toISOString();
-        delete registro.erroEnvio;
-        ok++;
-      } else {
-        registro.erroEnvio = (res && res.erro) || "sem resposta para este registro";
-        erro = registro.erroEnvio;
-        falhas++;
-      }
-    }
-
-    await gravarRegistros(lista);
-    return { ok: ok, falhas: falhas, total: pendentes.length, erro: erro };
-  } finally {
-    spSincronizando = false;
+  while (spSincronizacaoAtual) {
+    try { await spSincronizacaoAtual; } catch (e) { /* a proxima tenta de novo */ }
   }
+  spSincronizacaoAtual = executarSincronizacao();
+  try {
+    return await spSincronizacaoAtual;
+  } finally {
+    spSincronizacaoAtual = null;
+  }
+}
+
+// Para gatilhos automaticos: se ja ha envio em andamento, nao enfileira outro.
+function sincronizarSeLivre() {
+  if (spSincronizacaoAtual) return Promise.resolve(null);
+  return sincronizarPendentes();
+}
+
+async function executarSincronizacao() {
+  const pendentes = (await lerRegistros()).filter((r) => !r.enviado);
+  if (!pendentes.length) return { ok: 0, falhas: 0, total: 0, erro: null };
+
+  // Registros que ja falharam antes sao conferidos na lista antes de
+  // gravar de novo, para nao virarem linha duplicada no relatorio.
+  const lote = pendentes.map((r) => ({
+    id: r.id,
+    campos: spCamposDoRegistro(r),
+    verificarDuplicata: (r.tentativas || 0) > 0
+  }));
+
+  let resposta;
+  try {
+    resposta = await spGravarLote(lote);
+  } catch (e) {
+    resposta = { erro: String((e && e.message) || e) };
+  }
+
+  const porId = {};
+  for (const r of resposta.resultados || []) porId[r.id] = r;
+
+  const agora = new Date().toISOString();
+  const alteracoes = {};
+  let ok = 0;
+  let falhas = 0;
+  let erro = resposta.erro || null;
+
+  for (const registro of pendentes) {
+    const res = porId[registro.id];
+    const tentativas = (registro.tentativas || 0) + 1;
+    if (res && res.ok) {
+      alteracoes[registro.id] = { enviado: true, enviadoEm: agora, erroEnvio: undefined, tentativas };
+      ok++;
+    } else {
+      const motivo = (res && res.erro) || resposta.erro || "sem resposta para este registro";
+      alteracoes[registro.id] = { erroEnvio: motivo, tentativas };
+      erro = motivo;
+      falhas++;
+    }
+  }
+
+  await aplicarNosRegistros(alteracoes);
+  return { ok: ok, falhas: falhas, total: pendentes.length, erro: erro };
+}
+
+// Executado DENTRO da pagina do SharePoint: cria a lista (se nao existir) e
+// as colunas que faltam, com nome interno fixo e titulo amigavel.
+function spInjecaoPrepararLista(site, nomeLista, colunas) {
+  const urlLista =
+    site + "/_api/web/lists/getbytitle('" + encodeURIComponent(nomeLista) + "')";
+  const leitura = { Accept: "application/json;odata=nometadata" };
+
+  return (async () => {
+    try {
+      const respDigest = await fetch(site + "/_api/contextinfo", {
+        method: "POST",
+        credentials: "include",
+        headers: leitura
+      });
+      if (!respDigest.ok) return { erro: "contextinfo HTTP " + respDigest.status };
+      const digest = (await respDigest.json()).FormDigestValue;
+
+      const escrever = (url, corpo, mesclar) => fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: Object.assign(
+          {
+            Accept: "application/json;odata=verbose",
+            "Content-Type": "application/json;odata=verbose",
+            "X-RequestDigest": digest
+          },
+          mesclar ? { "X-HTTP-Method": "MERGE", "IF-MATCH": "*" } : {}
+        ),
+        body: JSON.stringify(corpo)
+      });
+
+      const log = [];
+      const respLista = await fetch(urlLista + "?$select=Id", { credentials: "include", headers: leitura });
+      if (respLista.status === 404) {
+        const r = await escrever(site + "/_api/web/lists", {
+          __metadata: { type: "SP.List" },
+          BaseTemplate: 100,
+          Title: nomeLista,
+          Description: "Registros de nao atendimento (Rona) enviados pela extensao."
+        });
+        if (!r.ok) return { erro: "criar lista HTTP " + r.status + " - " + (await r.text()).slice(0, 150) };
+        log.push("Lista criada.");
+      } else if (!respLista.ok) {
+        return { erro: "lista HTTP " + respLista.status };
+      }
+
+      const respCampos = await fetch(urlLista + "/fields?$select=InternalName", { credentials: "include", headers: leitura });
+      if (!respCampos.ok) return { erro: "colunas HTTP " + respCampos.status };
+      const existentes = (await respCampos.json()).value.map((f) => f.InternalName);
+
+      for (const c of colunas) {
+        if (existentes.includes(c.nome)) {
+          log.push(c.titulo + ": ja existia");
+          continue;
+        }
+        // Options 8 = usar o Name como nome interno; +16 = mostrar na visao padrao.
+        const r = await escrever(urlLista + "/fields/CreateFieldAsXml", {
+          parameters: {
+            __metadata: { type: "SP.XmlSchemaFieldCreationInformation" },
+            SchemaXml: c.schemaXml,
+            Options: c.visivel ? 24 : 8
+          }
+        });
+        if (!r.ok) {
+          log.push(c.titulo + ": FALHOU - HTTP " + r.status);
+          continue;
+        }
+        if (c.titulo !== c.nome) {
+          await escrever(
+            urlLista + "/fields/getbyinternalnameortitle('" + c.nome + "')",
+            { __metadata: { type: "SP.Field" }, Title: c.titulo },
+            true
+          );
+        }
+        log.push(c.titulo + ": criada");
+      }
+
+      await escrever(
+        urlLista + "/fields/getbyinternalnameortitle('Title')",
+        { __metadata: { type: "SP.Field" }, Title: "Telefone", Required: false },
+        true
+      );
+      log.push("Coluna Title renomeada para Telefone.");
+
+      return { ok: true, log: log };
+    } catch (e) {
+      return { erro: String((e && e.message) || e) };
+    }
+  })();
+}
+
+function escaparXml(texto) {
+  return String(texto)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/'/g, "&apos;")
+    .replace(/"/g, "&quot;");
+}
+
+function spSchemaXml(coluna) {
+  if (coluna.choice) {
+    const opcoes = MOTIVOS.map((m) => "<CHOICE>" + escaparXml(m) + "</CHOICE>").join("");
+    return "<Field Type='Choice' Format='Dropdown' FillInChoice='TRUE' Name='" + coluna.nome +
+      "' DisplayName='" + coluna.nome + "'><CHOICES>" + opcoes + "</CHOICES></Field>";
+  }
+  return "<Field " + coluna.xml + " Name='" + coluna.nome + "' DisplayName='" + coluna.nome + "' />";
+}
+
+async function spPrepararLista() {
+  const colunas = SP_COLUNAS.map((c) => ({
+    nome: c.nome,
+    titulo: c.titulo,
+    visivel: c.visivel,
+    schemaXml: spSchemaXml(c)
+  }));
+  const resultado = await spExecutarNaAba(spInjecaoPrepararLista, [SP_SITE, SP_LISTA, colunas]);
+  if (resultado.erro) return { ok: false, mensagem: traduzirErroSp(resultado.erro) };
+  return { ok: true, mensagem: resultado.log.join("\n") };
 }
 
 // Diagnostico passo a passo: leitura direta e escrita pela aba do SharePoint.
@@ -320,13 +491,17 @@ async function spDiagnostico() {
     }
   }
 
-  // Lote vazio: obtem o digest e o tipo da lista sem gravar nada.
+  // Lote vazio: obtem o digest, o tipo e as colunas da lista sem gravar nada.
   let escritaOk = false;
   let detalheEscrita = "";
+  let faltando = null;
   try {
     const teste = await spGravarLote([]);
     if (teste.erro) detalheEscrita = teste.erro;
     else escritaOk = Boolean(teste.digestOk);
+    if (teste.campos) {
+      faltando = SP_COLUNAS.filter((c) => !teste.campos.includes(c.nome)).map((c) => c.nome);
+    }
   } catch (e) {
     detalheEscrita = String((e && e.message) || e);
   }
@@ -335,10 +510,18 @@ async function spDiagnostico() {
     "4. Escrita pela aba do SharePoint: " +
       (escritaOk ? "OK" : "FALHOU - " + (detalheEscrita || "motivo desconhecido"))
   );
+  if (faltando) {
+    linhas.push(
+      "5. Colunas da lista: " +
+        (faltando.length ? "faltando " + faltando.join(", ") + " (use Configurar lista)" : "OK")
+    );
+  }
 
   let conclusao;
   if (leiturasOk === 3 && escritaOk) {
-    conclusao = "Tudo certo. O envio para a lista deve funcionar.";
+    conclusao = faltando && faltando.length
+      ? "O envio funciona, mas as colunas faltando nao serao gravadas."
+      : "Tudo certo. O envio para a lista deve funcionar.";
   } else if (leiturasOk === 3 && !escritaOk) {
     conclusao =
       "A leitura funciona, mas a gravacao pela aba do SharePoint falhou. " +

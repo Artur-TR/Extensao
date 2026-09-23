@@ -13,7 +13,7 @@ function filtrar() {
     if (ate && d > ate) return false;
     if (motivo && r.motivo !== motivo) return false;
     if (busca) {
-      const campos = [r.telefone, r.codCliente, r.atendente, r.observacao]
+      const campos = [r.telefone, r.codCliente, r.idInteracao, r.atendente, r.observacao]
         .join(" ")
         .toLowerCase();
       if (!campos.includes(busca)) return false;
@@ -37,16 +37,18 @@ function renderizar() {
   for (const r of lista) {
     const tr = document.createElement("tr");
     const celulas = [
-      formatarDataHora(r.dataHora),
-      r.atendente || "",
-      r.telefone || "",
-      r.codCliente || "",
-      r.motivo || "",
-      r.observacao || ""
+      [formatarDataHora(r.dataHora)],
+      [r.atendente || ""],
+      [r.telefone || ""],
+      [r.codCliente || ""],
+      [r.idInteracao || "", "id"],
+      [r.motivo || ""],
+      [r.observacao || ""]
     ];
-    for (const texto of celulas) {
+    for (const [texto, classe] of celulas) {
       const td = document.createElement("td");
       td.textContent = texto;
+      if (classe) td.className = classe;
       tr.appendChild(td);
     }
 
@@ -114,6 +116,19 @@ async function testarConexao() {
   mostrarAviso(resultado.mensagem, resultado.ok ? "ok" : "erro");
 }
 
+async function prepararLista() {
+  if (!confirm(
+    "Criar no SharePoint a lista '" + SP_LISTA + "' e as colunas que faltarem?\n" +
+    "Nada existente e apagado. Requer permissao para editar a lista."
+  )) return;
+  const botao = el("btnPrepararLista");
+  botao.disabled = true;
+  mostrarAviso("Configurando a lista...", "ok");
+  const resultado = await chrome.runtime.sendMessage({ tipo: "prepararLista" });
+  botao.disabled = false;
+  mostrarAviso(resultado.mensagem, resultado.ok ? "ok" : "erro");
+}
+
 async function entrarNaMicrosoft() {
   mostrarAviso(
     "Abrindo a pagina da lista. Se o Microsoft 365 pedir login, faca a entrada; " +
@@ -124,7 +139,10 @@ async function entrarNaMicrosoft() {
 }
 
 async function excluir(id) {
-  if (!confirm("Excluir este registro?")) return;
+  if (!confirm(
+    "Excluir este registro desta maquina?\n" +
+    "Se ele ja foi enviado, continua na lista do SharePoint."
+  )) return;
   todos = todos.filter((r) => r.id !== id);
   await gravarRegistros(todos);
   renderizar();
@@ -155,23 +173,29 @@ function exportarCsv() {
     "Origem do nome",
     "Telefone",
     "Codigo do cliente",
+    "ID da interacao (Genesys)",
     "Motivo",
     "Observacao",
+    "Origem dos dados",
     "Registrado em",
-    "Enviado para a lista"
+    "Enviado para a lista",
+    "Versao da extensao"
   ];
 
   const linhas = lista.map((r) =>
     [
       formatarDataHora(r.dataHora),
       r.atendente,
-      r.atendenteOrigem === "SGD" ? "SGD" : "manual",
+      r.atendenteOrigem || "manual",
       r.telefone,
       r.codCliente,
+      r.idInteracao,
       r.motivo,
       r.observacao,
+      r.origemDados,
       formatarDataHora(r.registradoEm),
-      r.enviado ? formatarDataHora(r.enviadoEm) : "pendente"
+      r.enviado ? formatarDataHora(r.enviadoEm) : "pendente",
+      r.versao
     ].map(campoCsv).join(";")
   );
 
@@ -197,15 +221,18 @@ function limparFiltros() {
 }
 
 async function iniciar() {
+  todos = await lerRegistros();
+
+  // Inclui motivos de registros antigos que sairam da relacao atual.
   const select = el("filtroMotivo");
-  for (const motivo of MOTIVOS) {
+  const motivos = [...new Set([...MOTIVOS, ...todos.map((r) => r.motivo).filter(Boolean)])];
+  for (const motivo of motivos) {
     const opcao = document.createElement("option");
     opcao.value = motivo;
     opcao.textContent = motivo;
     select.appendChild(opcao);
   }
 
-  todos = await lerRegistros();
   renderizar();
 
   ["de", "ate", "filtroMotivo", "busca"].forEach((id) =>
@@ -216,6 +243,7 @@ async function iniciar() {
   el("btnLimparFiltros").addEventListener("click", limparFiltros);
   el("btnEnviarPendentes").addEventListener("click", enviarPendentes);
   el("btnTestarConexao").addEventListener("click", testarConexao);
+  el("btnPrepararLista").addEventListener("click", prepararLista);
   el("btnEntrarMicrosoft").addEventListener("click", entrarNaMicrosoft);
 
   // Se algum pendente subiu por conta propria enquanto a pagina estava aberta,
