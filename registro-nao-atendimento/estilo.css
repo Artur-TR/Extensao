@@ -1,0 +1,258 @@
+:root {
+  --azul: #1a4f8a;
+  --azul-claro: #e8f0f8;
+  --cinza: #6b7280;
+  --borda: #d7dce3;
+  --vermelho: #b42318;
+  --verde: #0f7b45;
+}
+
+* { box-sizing: border-box; }
+
+/* ---------- barra de login do Microsoft 365 ---------- */
+
+.barraLogin {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fff4e5;
+  border-bottom: 1px solid #f5c98a;
+  color: #92400e;
+  font-size: 11.5px;
+  line-height: 1.4;
+  padding: 9px 14px;
+}
+
+.barraLogin button {
+  flex: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  background: #92400e;
+  border-color: #92400e;
+}
+
+body {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  color: #1f2937;
+  margin: 0;
+  background: #fff;
+}
+
+h1 {
+  font-size: 15px;
+  margin: 0;
+  color: var(--azul);
+}
+
+.cabecalho {
+  background: var(--azul-claro);
+  border-bottom: 1px solid var(--borda);
+  padding: 12px 16px;
+}
+
+.cabecalho p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--cinza);
+}
+
+.conteudo { padding: 14px 16px; }
+
+label {
+  display: block;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  color: var(--cinza);
+  margin-bottom: 4px;
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid var(--borda);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 13px;
+  background: #fff;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--azul);
+  outline-offset: -1px;
+}
+
+textarea { resize: vertical; min-height: 52px; }
+
+.campo { margin-bottom: 11px; }
+
+.linha { display: flex; gap: 10px; }
+.linha .campo { flex: 1; }
+
+button {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--azul);
+  background: var(--azul);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover { filter: brightness(1.1); }
+
+button.secundario {
+  background: #fff;
+  color: var(--azul);
+}
+
+button.perigo {
+  background: #fff;
+  color: var(--vermelho);
+  border-color: var(--vermelho);
+}
+
+.acoes {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.aviso {
+  display: none;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre-line;
+  line-height: 1.6;
+}
+
+.aviso.ok { display: block; background: #e7f6ee; color: var(--verde); }
+.aviso.erro { display: block; background: #fdeceb; color: var(--vermelho); }
+
+.rodape {
+  border-top: 1px solid var(--borda);
+  padding: 9px 16px;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+a { color: var(--azul); text-decoration: none; cursor: pointer; }
+a:hover { text-decoration: underline; }
+
+.detectado {
+  font-size: 11px;
+  color: var(--verde);
+  margin-top: 3px;
+  display: none;
+}
+
+/* ---------- pagina de historico ---------- */
+
+.pagina { max-width: 1180px; margin: 0 auto; padding: 24px; }
+
+.filtros {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  background: #f7f9fc;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.filtros .campo { margin-bottom: 0; min-width: 150px; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+th {
+  text-align: left;
+  background: var(--azul);
+  color: #fff;
+  padding: 8px 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--borda);
+  vertical-align: top;
+}
+
+tr:nth-child(even) td { background: #fafbfd; }
+
+.vazio {
+  text-align: center;
+  color: var(--cinza);
+  padding: 40px 0;
+}
+
+.excluir {
+  color: var(--vermelho);
+  font-size: 11px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-weight: 600;
+}
+
+.resumo {
+  font-size: 12px;
+  color: var(--cinza);
+  margin-bottom: 10px;
+}
+
+/* ---------- origem do atendente ---------- */
+
+.etiqueta {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 9px;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 4px;
+}
+
+.etiqueta.ok { background: #e7f6ee; color: var(--verde); }
+.etiqueta.alerta { background: #fff4e5; color: #92400e; }
+
+.dica {
+  font-size: 11px;
+  color: var(--cinza);
+  margin-top: 3px;
+}
+
+input[readonly] {
+  background: #f3f5f8;
+  color: #374151;
+  cursor: default;
+}
+
+/* ---------- status de envio ---------- */
+
+.envio {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.envio.ok { color: var(--verde); }
+.envio.pendente { color: #92400e; cursor: help; }

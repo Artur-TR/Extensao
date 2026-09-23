@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="estilo.css">
+  <style> body { width: 360px; } </style>
+</head>
+<body>
+  <div class="cabecalho">
+    <h1>Registro de nao atendimento</h1>
+    <p>Informe o motivo da chamada nao atendida.</p>
+  </div>
+
+  <div class="barraLogin" id="barraLogin">
+    <span id="textoLogin">Verificando sessao do Microsoft 365...</span>
+    <button type="button" id="btnLogin">Entrar</button>
+  </div>
+
+  <div class="conteudo">
+    <form id="formulario">
+      <div class="campo">
+        <label for="atendente">Atendente <span class="etiqueta" id="origemAtendente"></span></label>
+        <input type="text" id="atendente" placeholder="Seu nome ou matricula" required>
+        <div class="dica" id="dicaAtendente"></div>
+      </div>
+
+      <div class="linha">
+        <div class="campo">
+          <label for="telefone">Telefone</label>
+          <input type="text" id="telefone" placeholder="(00) 00000-0000" required>
+        </div>
+        <div class="campo">
+          <label for="codCliente">Cod. cliente</label>
+          <input type="text" id="codCliente" placeholder="opcional">
+        </div>
+      </div>
+      <div class="detectado" id="detectado">Dados preenchidos automaticamente pela guia aberta.</div>
+
+      <div class="campo">
+        <label for="dataHora">Data e hora da chamada</label>
+        <input type="datetime-local" id="dataHora" required>
+      </div>
+
+      <div class="campo">
+        <label for="motivo">Motivo do nao atendimento</label>
+        <select id="motivo" required>
+          <option value="">Selecione...</option>
+        </select>
+      </div>
+
+      <div class="campo">
+        <label for="observacao">Observacao</label>
+        <textarea id="observacao" placeholder="Detalhe se necessario"></textarea>
+      </div>
+
+      <div class="acoes">
+        <button type="submit">Registrar</button>
+        <button type="button" class="secundario" id="btnHistorico">Ver historico</button>
+      </div>
+
+      <div class="aviso" id="aviso"></div>
+    </form>
+  </div>
+
+  <div class="rodape">
+    <span id="contador">0 registros</span>
+    <a id="linkHistorico">Abrir historico completo</a>
+  </div>
+
+  <script src="common.js"></script>
+  <script src="sharepoint.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

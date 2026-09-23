@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Historico de nao atendimentos</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <div class="pagina">
+    <h1 style="font-size:20px; margin-bottom:4px;">Historico de nao atendimentos</h1>
+    <p style="color:#6b7280; margin-top:0; font-size:13px;">
+      Registros salvos nesta maquina e enviados para a lista do SharePoint.
+      O CSV continua disponivel como copia de seguranca.
+    </p>
+
+    <div class="filtros">
+      <div class="campo">
+        <label for="de">De</label>
+        <input type="date" id="de">
+      </div>
+      <div class="campo">
+        <label for="ate">Ate</label>
+        <input type="date" id="ate">
+      </div>
+      <div class="campo">
+        <label for="filtroMotivo">Motivo</label>
+        <select id="filtroMotivo"><option value="">Todos</option></select>
+      </div>
+      <div class="campo" style="min-width:210px;">
+        <label for="busca">Buscar (telefone, codigo, atendente)</label>
+        <input type="text" id="busca" placeholder="digite para filtrar">
+      </div>
+      <button type="button" class="secundario" id="btnLimparFiltros">Limpar filtros</button>
+      <button type="button" id="btnEnviarPendentes">Enviar pendentes</button>
+      <button type="button" class="secundario" id="btnEntrarMicrosoft">Entrar no Microsoft 365</button>
+      <button type="button" class="secundario" id="btnTestarConexao">Testar conexao</button>
+      <button type="button" class="secundario" id="btnCsv">Exportar CSV</button>
+      <button type="button" class="perigo" id="btnApagarTudo">Apagar tudo</button>
+    </div>
+
+    <div class="aviso" id="aviso"></div>
+
+    <div class="resumo" id="resumo"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Data/hora da chamada</th>
+          <th>Atendente</th>
+          <th>Telefone</th>
+          <th>Cod. cliente</th>
+          <th>Motivo</th>
+          <th>Observacao</th>
+          <th>Envio</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="corpo"></tbody>
+    </table>
+
+    <div class="vazio" id="vazio" style="display:none;">Nenhum registro encontrado.</div>
+  </div>
+
+  <script src="common.js"></script>
+  <script src="sharepoint.js"></script>
+  <script src="historico.js"></script>
+</body>
+</html>
