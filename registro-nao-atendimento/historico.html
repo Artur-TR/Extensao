@@ -2,15 +2,15 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Historico de nao atendimentos</title>
+  <title>Histórico de não atendimentos</title>
   <link rel="stylesheet" href="estilo.css">
 </head>
 <body>
   <div class="pagina">
-    <h1 style="font-size:20px; margin-bottom:4px;">Historico de nao atendimentos</h1>
+    <h1 style="font-size:20px; margin-bottom:4px;">Histórico de não atendimentos</h1>
     <p style="color:#6b7280; margin-top:0; font-size:13px;">
-      Registros salvos nesta maquina e enviados para a lista do SharePoint.
-      O CSV continua disponivel como copia de seguranca.
+      Registros salvos nesta máquina e enviados para a lista do SharePoint.
+      O CSV continua disponível como cópia de segurança.
     </p>
 
     <div class="filtros">
@@ -19,7 +19,7 @@
         <input type="date" id="de">
       </div>
       <div class="campo">
-        <label for="ate">Ate</label>
+        <label for="ate">Até</label>
         <input type="date" id="ate">
       </div>
       <div class="campo">
@@ -27,16 +27,27 @@
         <select id="filtroMotivo"><option value="">Todos</option></select>
       </div>
       <div class="campo" style="min-width:210px;">
-        <label for="busca">Buscar (telefone, codigo, atendente)</label>
+        <label for="busca">Buscar (telefone, código, ID, atendente)</label>
         <input type="text" id="busca" placeholder="digite para filtrar">
       </div>
       <button type="button" class="secundario" id="btnLimparFiltros">Limpar filtros</button>
       <button type="button" id="btnEnviarPendentes">Enviar pendentes</button>
       <button type="button" class="secundario" id="btnEntrarMicrosoft">Entrar no Microsoft 365</button>
-      <button type="button" class="secundario" id="btnTestarConexao">Testar conexao</button>
       <button type="button" class="secundario" id="btnCsv">Exportar CSV</button>
       <button type="button" class="perigo" id="btnApagarTudo">Apagar tudo</button>
     </div>
+
+    <details class="avancado">
+      <summary>Avançado</summary>
+      <p>
+        "Configurar lista" cria a lista e as colunas que faltarem no SharePoint.
+        Só precisa ser usado uma vez, pelo dono da lista (ou ao trocar de lista).
+      </p>
+      <div class="acoes">
+        <button type="button" class="secundario" id="btnTestarConexao">Testar conexão</button>
+        <button type="button" class="secundario" id="btnPrepararLista">Configurar lista</button>
+      </div>
+    </details>
 
     <div class="aviso" id="aviso"></div>
 
@@ -48,9 +59,10 @@
           <th>Data/hora da chamada</th>
           <th>Atendente</th>
           <th>Telefone</th>
-          <th>Cod. cliente</th>
+          <th>Cód. cliente</th>
+          <th>ID Genesys</th>
           <th>Motivo</th>
-          <th>Observacao</th>
+          <th>Observação</th>
           <th>Envio</th>
           <th></th>
         </tr>
